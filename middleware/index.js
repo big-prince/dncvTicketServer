@@ -96,6 +96,7 @@ const corsMiddleware = (req, res, next) => {
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
+    "https://dncvticket.netlify.app",
     process.env.FRONTEND_URL
   ].filter(Boolean);
 
