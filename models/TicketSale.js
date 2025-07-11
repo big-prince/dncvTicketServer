@@ -170,7 +170,7 @@ ticketSaleSchema.pre('save', function (next) {
 ticketSaleSchema.index({ 'customerInfo.email': 1 });
 ticketSaleSchema.index({ 'paymentInfo.reference': 1 });
 ticketSaleSchema.index({ 'paymentInfo.status': 1 });
-ticketSaleSchema.index({ 'tickets.ticketId': 1 });
+ticketSaleSchema.index({ 'ticketId': 1 });
 ticketSaleSchema.index({ createdAt: -1 });
 
 // Virtual for customer's full name
@@ -180,7 +180,7 @@ ticketSaleSchema.virtual('customerInfo.fullName').get(function () {
 
 // Virtual for total tickets count
 ticketSaleSchema.virtual('totalTickets').get(function () {
-  return this.tickets.length;
+  return this.ticketInfo.quantity || 0;
 });
 
 // Ensure virtuals are included in JSON output

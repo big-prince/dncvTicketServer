@@ -4,7 +4,7 @@ const dbIndexManager = require('../utils/dbIndexManager');
 
 const router = express.Router();
 
-// Simple authentication middleware (in production, use proper auth)
+// Simple authentication middleware (legacy - for backward compatibility)
 const authenticateAdmin = (req, res, next) => {
   const authHeader = req.headers.authorization;
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
@@ -22,23 +22,33 @@ const authenticateAdmin = (req, res, next) => {
 // Apply authentication to all admin routes
 router.use(authenticateAdmin);
 
-// Get dashboard statistics
-router.get('/stats', AdminController.getDashboardStats);
+// Legacy routes for backward compatibility
+router.get('/stats', AdminController.getSystemStats);
 
-// Get all sales with pagination and filters
-router.get('/sales', AdminController.getAllSales);
+// Redirect to new admin endpoints
+router.get('/dashboard', (req, res) => {
+  res.json({
+    success: false,
+    message: 'This endpoint has been moved to /api/admin/dashboard with JWT authentication',
+    newEndpoint: '/api/admin/dashboard'
+  });
+});
 
-// Get single sale details
-router.get('/sales/:saleId', AdminController.getSaleDetails);
+router.get('/sales', (req, res) => {
+  res.json({
+    success: false,
+    message: 'This endpoint has been moved to /api/admin/payments/pending with JWT authentication',
+    newEndpoint: '/api/admin/payments/pending'
+  });
+});
 
-// Update sale status
-router.patch('/sales/:saleId/status', AdminController.updateSaleStatus);
-
-// Export sales data
-router.get('/export', AdminController.exportSales);
-
-// Get ticket verification logs
-router.get('/verification-logs', AdminController.getVerificationLogs);
+router.get('/analytics', (req, res) => {
+  res.json({
+    success: false,
+    message: 'This endpoint has been moved to /api/admin/analytics with JWT authentication',
+    newEndpoint: '/api/admin/analytics'
+  });
+});
 
 // Database Index Management Routes
 

@@ -142,10 +142,10 @@ const generateTicketEmailTemplate = (ticketSale) => {
           <div class="event-details">
             <h3>📅 Event Details</h3>
             <p><strong>Event:</strong> De Noble Choral Voices 5th Edition Concert</p>
-            <p><strong>Date:</strong> Sunday, December 22, 2024</p>
-            <p><strong>Time:</strong> 5:00 PM</p>
-            <p><strong>Venue:</strong> National Theatre, Lagos</p>
-            <p><strong>Address:</strong> National Arts Theatre, Iganmu, Lagos, Nigeria</p>
+            <p><strong>Date:</strong> Sunday, 28th September, 2025</p>
+            <p><strong>Time:</strong> 5:00 PM till 8:00 PM</p>
+            <p><strong>Venue:</strong> Oasis Event Centre, PH</p>
+            <p><strong>Address:</strong> #12 Psychiatric Hospital Road, Rumuola, PH</p>
           </div>
 
           <div class="ticket-info">
@@ -166,16 +166,22 @@ const generateTicketEmailTemplate = (ticketSale) => {
             </ul>
           </div>
 
-          <h3>🔍 Your QR Tickets</h3>
-          ${ticketSale.tickets.map((ticket, index) => `
-            <div class="ticket-item">
-              <h4>Ticket ${index + 1} of ${ticketSale.tickets.length}</h4>
-              <p><strong>Ticket ID:</strong> ${ticket.ticketId}</p>
-              <div class="qr-container">
-                <img src="${ticket.qrCode}" alt="QR Code for Ticket ${index + 1}" />
+          <h3>🔍 Your QR Ticket</h3>
+          <div class="ticket-item">
+            <h4>Ticket Information</h4>
+            <p><strong>Ticket ID:</strong> ${ticketSale.ticketId}</p>
+            <p><strong>Quantity:</strong> ${ticketSale.ticketInfo.quantity}</p>
+            <div class="qr-container">
+              <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                QR Code for Entry
+              </div>
+              <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #e5e7eb;">
+                <div style="font-family: monospace; font-size: 12px; word-break: break-all; background: #f9f9f9; padding: 10px; border-radius: 4px;">
+                  ${ticketSale.qrCode || 'QR Code will be generated upon payment approval'}
+                </div>
               </div>
             </div>
-          `).join('')}
+          </div>
 
           <div style="text-align: center; margin: 30px 0;">
             <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=DNCV%205th%20Edition%20Concert&dates=20241222T170000Z/20241222T210000Z&details=De%20Noble%20Choral%20Voices%205th%20Edition%20Concert&location=National%20Theatre,%20Lagos" class="btn">
@@ -185,7 +191,7 @@ const generateTicketEmailTemplate = (ticketSale) => {
         </div>
 
         <div class="footer">
-          <p>De Noble Choral Voices | National Theatre, Lagos</p>
+          <p>De Noble Choral Voices | Oasis Event Centre, PH</p>
           <p>For inquiries: info@denoblechoralvoices.com | +234 XXX XXX XXXX</p>
           <p>Follow us on social media for updates!</p>
         </div>
@@ -311,6 +317,7 @@ const generateTransferCompletedTemplate = (ticketSale) => {
 
 // Generate payment rejection email template
 const generatePaymentRejectionTemplate = (ticketSale, reason) => {
+  console.log(ticketSale, "Ticket Sale")
   const customerName = `${ticketSale.customerInfo.firstName} ${ticketSale.customerInfo.lastName}`;
 
   return `

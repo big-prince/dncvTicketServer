@@ -45,7 +45,8 @@ const connectDB = async () => {
 // API Routes
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/payments', require('./routes/payments'));
-app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin', require('./routes/adminAuth')); // New JWT-based admin routes
+app.use('/api/admin/legacy', require('./routes/admin')); // Legacy admin routes
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -77,12 +78,19 @@ app.get('/api', (req, res) => {
         'POST /api/payments/opay/webhook': 'OPay webhook endpoint'
       },
       admin: {
-        'GET /api/admin/stats': 'Get dashboard statistics (requires auth)',
-        'GET /api/admin/sales': 'Get all sales with pagination (requires auth)',
-        'GET /api/admin/sales/:saleId': 'Get single sale details (requires auth)',
-        'PATCH /api/admin/sales/:saleId/status': 'Update sale status (requires auth)',
-        'GET /api/admin/export': 'Export sales data (requires auth)',
-        'GET /api/admin/verification-logs': 'Get ticket verification logs (requires auth)'
+        'POST /api/admin/login': 'Admin login (returns JWT token)',
+        'GET /api/admin/dashboard': 'Get dashboard statistics (requires JWT)',
+        'GET /api/admin/profile': 'Get admin profile (requires JWT)',
+        'GET /api/admin/payments/pending': 'Get pending payments (requires JWT)',
+        'POST /api/admin/payments/:reference/approve': 'Approve payment (requires JWT)',
+        'POST /api/admin/payments/:reference/reject': 'Reject payment (requires JWT)',
+        'GET /api/admin/analytics': 'Get analytics data (requires JWT)',
+        'GET /api/admin/admins': 'Get all admins (super-admin only)',
+        'POST /api/admin/admins': 'Create admin (super-admin only)',
+        'PATCH /api/admin/admins/:adminId': 'Update admin (super-admin only)',
+        'DELETE /api/admin/admins/:adminId': 'Delete admin (super-admin only)',
+        'GET /api/admin/system/stats': 'Get system stats (requires JWT)',
+        'POST /api/admin/system/maintenance': 'Toggle maintenance mode (super-admin only)'
       }
     },
     authentication: {

@@ -15,6 +15,7 @@ const createTransporter = () => {
 
 // Generate ticket email HTML template
 const generateTicketEmailTemplate = (ticketSale) => {
+  console.log(ticketSale);
   const customerName = `${ticketSale.customerInfo.firstName} ${ticketSale.customerInfo.lastName}`;
 
   return `
