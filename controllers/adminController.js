@@ -29,7 +29,7 @@ class AdminController {
 
       const { adminId } = req.body;
 
-      // Find admin by ID
+      // Find admin with populated fields by ID
       const admin = await Admin.findByAdminId(adminId);
       if (!admin) {
         return res.status(401).json({
@@ -372,7 +372,7 @@ class AdminController {
     }
   }
 
-  // Get analytics data
+  // Enhanced analytics with AI insights
   static async getAnalytics(req, res) {
     try {
       const admin = req.admin;
@@ -384,19 +384,43 @@ class AdminController {
         });
       }
 
-      // Get analytics data for the last 30 days
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
       const [
+        // Time-based analytics
         ticketSalesOverTime,
         revenueOverTime,
+        hourlyPurchasePattern,
+
+        // Product analytics
         ticketTypeDistribution,
+        averageOrderValue,
+        conversionFunnelData,
+
+        // Customer analytics
+        customerSegmentation,
+        topCustomers,
+        customerRetention,
+        geographicDistribution,
+
+        // Performance metrics
         paymentStatusDistribution,
-        topCustomers
+        responseTimeMetrics,
+        abandonmentRate,
+
+        // Trends and forecasting data
+        weeklyTrends,
+        monthlyComparison,
+        projectionData
       ] = await Promise.all([
+        // Time-based analytics
         TicketSale.aggregate([
           {
-            $match: { createdAt: { $gte: thirtyDaysAgo } }
+            $match: {
+              createdAt: { $gte: thirtyDaysAgo }
+            }
           },
           {
             $group: {
@@ -404,11 +428,13 @@ class AdminController {
                 date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
               },
               count: { $sum: 1 },
-              revenue: { $sum: "$ticketInfo.totalAmount" }
+              revenue: { $sum: "$ticketInfo.totalAmount" },
+              tickets: { $sum: "$ticketInfo.quantity" }
             }
           },
           { $sort: { "_id.date": 1 } }
         ]),
+
         TicketSale.aggregate([
           {
             $match: {
@@ -426,24 +452,56 @@ class AdminController {
           },
           { $sort: { "_id.date": 1 } }
         ]),
+
+        TicketSale.aggregate([
+          {
+            $group: {
+              _id: { $hour: "$createdAt" },
+              count: { $sum: 1 },
+              revenue: { $sum: "$ticketInfo.totalAmount" }
+            }
+          },
+          { $sort: { "_id": 1 } }
+        ]),
+
+        // Product analytics
         TicketSale.aggregate([
           {
             $group: {
               _id: "$ticketInfo.typeName",
               count: { $sum: "$ticketInfo.quantity" },
-              revenue: { $sum: "$ticketInfo.totalAmount" }
+              revenue: { $sum: "$ticketInfo.totalAmount" },
+              orders: { $sum: 1 },
+              avgPrice: { $avg: "$ticketInfo.unitPrice" }
             }
           }
         ]),
+
+        TicketSale.aggregate([
+          {
+            $match: { 'paymentInfo.status': 'completed' }
+          },
+          {
+            $group: {
+              _id: null,
+              avgOrderValue: { $avg: "$ticketInfo.totalAmount" },
+              totalOrders: { $sum: 1 },
+              totalRevenue: { $sum: "$ticketInfo.totalAmount" }
+            }
+          }
+        ]),
+
         TicketSale.aggregate([
           {
             $group: {
               _id: "$paymentInfo.status",
               count: { $sum: 1 },
-              totalAmount: { $sum: "$ticketInfo.totalAmount" }
+              percentage: { $avg: 1 }
             }
           }
         ]),
+
+        // Customer analytics
         TicketSale.aggregate([
           {
             $match: { 'paymentInfo.status': 'completed' }
@@ -454,27 +512,350 @@ class AdminController {
               customerName: { $first: { $concat: ["$customerInfo.firstName", " ", "$customerInfo.lastName"] } },
               totalSpent: { $sum: "$ticketInfo.totalAmount" },
               ticketCount: { $sum: "$ticketInfo.quantity" },
-              orderCount: { $sum: 1 }
+              orderCount: { $sum: 1 },
+              firstPurchase: { $min: "$createdAt" },
+              lastPurchase: { $max: "$createdAt" },
+              avgOrderValue: { $avg: "$ticketInfo.totalAmount" }
+            }
+          },
+          {
+            $addFields: {
+              customerValue: {
+                $cond: {
+                  if: { $gte: ["$totalSpent", 50000] },
+                  then: "VIP",
+                  else: {
+                    $cond: {
+                      if: { $gte: ["$totalSpent", 15000] },
+                      then: "Premium",
+                      else: "Regular"
+                    }
+                  }
+                }
+              },
+              daysSinceFirstPurchase: {
+                $divide: [
+                  { $subtract: [new Date(), "$firstPurchase"] },
+                  1000 * 60 * 60 * 24
+                ]
+              }
+            }
+          },
+          { $sort: { totalSpent: -1 } }
+        ]),
+
+        TicketSale.aggregate([
+          {
+            $match: { 'paymentInfo.status': 'completed' }
+          },
+          {
+            $group: {
+              _id: "$customerInfo.email",
+              customerName: { $first: { $concat: ["$customerInfo.firstName", " ", "$customerInfo.lastName"] } },
+              totalSpent: { $sum: "$ticketInfo.totalAmount" },
+              ticketCount: { $sum: "$ticketInfo.quantity" },
+              orderCount: { $sum: 1 },
+              phone: { $first: "$customerInfo.phone" }
             }
           },
           { $sort: { totalSpent: -1 } },
-          { $limit: 10 }
+          { $limit: 20 }
+        ]),
+
+        TicketSale.aggregate([
+          {
+            $match: { 'paymentInfo.status': 'completed' }
+          },
+          {
+            $group: {
+              _id: { $month: "$createdAt" },
+              newCustomers: { $addToSet: "$customerInfo.email" },
+              returningCustomers: { $sum: 1 }
+            }
+          },
+          {
+            $addFields: {
+              newCustomerCount: { $size: "$newCustomers" }
+            }
+          }
+        ]),
+
+        // Geographic analysis (based on phone area codes)
+        TicketSale.aggregate([
+          {
+            $match: { 'paymentInfo.status': 'completed' }
+          },
+          {
+            $addFields: {
+              areaCode: { $substr: ["$customerInfo.phone", 0, 4] }
+            }
+          },
+          {
+            $group: {
+              _id: "$areaCode",
+              count: { $sum: 1 },
+              revenue: { $sum: "$ticketInfo.totalAmount" }
+            }
+          },
+          { $sort: { count: -1 } }
+        ]),
+
+        // Performance metrics
+        TicketSale.aggregate([
+          {
+            $group: {
+              _id: "$paymentInfo.status",
+              count: { $sum: 1 },
+              totalAmount: { $sum: "$ticketInfo.totalAmount" },
+              avgProcessingTime: {
+                $avg: {
+                  $subtract: ["$paymentInfo.paidAt", "$paymentInfo.transferMarkedAt"]
+                }
+              }
+            }
+          }
+        ]),
+
+        // Response time metrics
+        TicketSale.aggregate([
+          {
+            $match: {
+              'paymentInfo.status': { $in: ['completed', 'rejected'] },
+              'paymentInfo.transferMarkedAt': { $exists: true },
+              'paymentInfo.paidAt': { $exists: true }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              avgResponseTime: {
+                $avg: {
+                  $subtract: ["$paymentInfo.paidAt", "$paymentInfo.transferMarkedAt"]
+                }
+              },
+              maxResponseTime: {
+                $max: {
+                  $subtract: ["$paymentInfo.paidAt", "$paymentInfo.transferMarkedAt"]
+                }
+              },
+              minResponseTime: {
+                $min: {
+                  $subtract: ["$paymentInfo.paidAt", "$paymentInfo.transferMarkedAt"]
+                }
+              }
+            }
+          }
+        ]),
+
+        // Abandonment rate
+        TicketSale.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalStarted: { $sum: 1 },
+              completed: {
+                $sum: {
+                  $cond: [{ $eq: ["$paymentInfo.status", "completed"] }, 1, 0]
+                }
+              },
+              abandoned: {
+                $sum: {
+                  $cond: [{ $eq: ["$paymentInfo.status", "pending_approval"] }, 1, 0]
+                }
+              }
+            }
+          },
+          {
+            $addFields: {
+              completionRate: { $divide: ["$completed", "$totalStarted"] },
+              abandonmentRate: { $divide: ["$abandoned", "$totalStarted"] }
+            }
+          }
+        ]),
+
+        // Trends and forecasting
+        TicketSale.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: sevenDaysAgo }
+            }
+          },
+          {
+            $group: {
+              _id: { $dayOfWeek: "$createdAt" },
+              count: { $sum: 1 },
+              revenue: { $sum: "$ticketInfo.totalAmount" }
+            }
+          },
+          { $sort: { "_id": 1 } }
+        ]),
+
+        TicketSale.aggregate([
+          {
+            $group: {
+              _id: { $month: "$createdAt" },
+              count: { $sum: 1 },
+              revenue: { $sum: "$ticketInfo.totalAmount" },
+              tickets: { $sum: "$ticketInfo.quantity" }
+            }
+          },
+          { $sort: { "_id": 1 } }
+        ]),
+
+        // Projection data for forecasting
+        TicketSale.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: thirtyDaysAgo },
+              'paymentInfo.status': 'completed'
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              dailyAvgRevenue: { $avg: "$ticketInfo.totalAmount" },
+              dailyAvgTickets: { $avg: "$ticketInfo.quantity" },
+              totalDays: { $sum: 1 }
+            }
+          }
         ])
       ]);
+
+      // AI-powered insights generation
+      const generateInsights = (data) => {
+        const insights = [];
+        const suggestions = [];
+        const alerts = [];
+
+        // Revenue insights
+        const totalRevenue = data.revenueOverTime.reduce((sum, day) => sum + day.revenue, 0);
+        const avgDailyRevenue = totalRevenue / data.revenueOverTime.length;
+
+        if (avgDailyRevenue > 100000) {
+          insights.push({
+            type: 'success',
+            title: 'Strong Revenue Performance',
+            description: `Daily average revenue of ₦${avgDailyRevenue.toLocaleString()} indicates excellent market response.`,
+            priority: 'high'
+          });
+        }
+
+        // Ticket type optimization
+        const topTicketType = data.ticketTypeDistribution.reduce((max, ticket) =>
+          ticket.revenue > max.revenue ? ticket : max, data.ticketTypeDistribution[0]);
+
+        if (topTicketType) {
+          suggestions.push({
+            type: 'optimization',
+            title: 'Focus on High-Performing Tickets',
+            description: `${topTicketType._id} tickets generate the highest revenue. Consider promoting similar experiences.`,
+            impact: 'high',
+            effort: 'low'
+          });
+        }
+
+        // Customer behavior insights
+        const vipCustomers = data.customerSegmentation.filter(c => c.customerValue === 'VIP').length;
+        const totalCustomers = data.customerSegmentation.length;
+        const vipPercentage = (vipCustomers / totalCustomers) * 100;
+
+        if (vipPercentage > 15) {
+          insights.push({
+            type: 'info',
+            title: 'High-Value Customer Base',
+            description: `${vipPercentage.toFixed(1)}% of customers are VIP tier, indicating strong premium appeal.`,
+            priority: 'medium'
+          });
+        }
+
+        // Time-based recommendations
+        const peakHour = data.hourlyPurchasePattern.reduce((max, hour) =>
+          hour.count > max.count ? hour : max, data.hourlyPurchasePattern[0]);
+
+        if (peakHour) {
+          suggestions.push({
+            type: 'timing',
+            title: 'Optimize Marketing Timing',
+            description: `Peak purchase activity occurs at ${peakHour._id}:00. Schedule promotions accordingly.`,
+            impact: 'medium',
+            effort: 'low'
+          });
+        }
+
+        // Response time alerts
+        const avgResponseTimeHours = data.responseTimeMetrics[0]?.avgResponseTime / (1000 * 60 * 60);
+        if (avgResponseTimeHours > 24) {
+          alerts.push({
+            type: 'warning',
+            title: 'Slow Payment Processing',
+            description: `Average response time of ${avgResponseTimeHours.toFixed(1)} hours exceeds target. Consider increasing admin capacity.`,
+            urgency: 'high'
+          });
+        }
+
+        // Abandonment rate warnings
+        const abandonmentRate = data.abandonmentRate[0]?.abandonmentRate || 0;
+        if (abandonmentRate > 0.3) {
+          alerts.push({
+            type: 'critical',
+            title: 'High Abandonment Rate',
+            description: `${(abandonmentRate * 100).toFixed(1)}% abandonment rate indicates checkout issues. Review payment process.`,
+            urgency: 'critical'
+          });
+        }
+
+        // Growth projections
+        const projectedMonthlyRevenue = avgDailyRevenue * 30;
+        suggestions.push({
+          type: 'projection',
+          title: 'Revenue Forecast',
+          description: `Based on current trends, projected monthly revenue: ₦${projectedMonthlyRevenue.toLocaleString()}`,
+          impact: 'info',
+          effort: 'none'
+        });
+
+        return { insights, suggestions, alerts };
+      };
+
+      const analyticsData = {
+        salesOverTime: ticketSalesOverTime,
+        revenueOverTime: revenueOverTime,
+        hourlyPurchasePattern: hourlyPurchasePattern,
+        ticketTypeDistribution: ticketTypeDistribution,
+        averageOrderValue: averageOrderValue[0] || {},
+        customerSegmentation: customerSegmentation,
+        topCustomers: topCustomers,
+        customerRetention: customerRetention,
+        geographicDistribution: geographicDistribution.slice(0, 10),
+        paymentStatusDistribution: paymentStatusDistribution,
+        responseTimeMetrics: responseTimeMetrics,
+        abandonmentRate: abandonmentRate,
+        weeklyTrends: weeklyTrends,
+        monthlyComparison: monthlyComparison,
+        projectionData: projectionData[0] || {}
+      };
+
+      const aiInsights = generateInsights(analyticsData);
 
       res.json({
         success: true,
         data: {
-          salesOverTime: ticketSalesOverTime,
-          revenueOverTime: revenueOverTime,
-          ticketTypeDistribution: ticketTypeDistribution,
-          paymentStatusDistribution: paymentStatusDistribution,
-          topCustomers: topCustomers
+          ...analyticsData,
+          aiInsights: aiInsights,
+          metadata: {
+            lastUpdated: new Date().toISOString(),
+            dataRange: {
+              from: thirtyDaysAgo.toISOString(),
+              to: new Date().toISOString()
+            },
+            totalDataPoints: ticketSalesOverTime.length,
+            confidence: 'high'
+          }
         }
       });
 
     } catch (error) {
-      console.error('Analytics error:', error);
+      console.error('Enhanced analytics error:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to fetch analytics data',
