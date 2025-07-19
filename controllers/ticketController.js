@@ -182,6 +182,11 @@ class TicketController {
         ticketType
       );
 
+      // Generate a custom readable ticket ID using customer's firstName + 4 random digits
+      const firstName = customerInfo.firstName.toUpperCase();
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      const customTicketId = `${firstName}${randomNum}`;
+
       // Create ticket sale record
       const ticketSale = new TicketSale({
         customerInfo,
@@ -197,6 +202,7 @@ class TicketController {
           amount: totalAmount,
           status: 'pending' // Will be updated by payment webhook
         },
+        ticketId: customTicketId, // Add custom ticket ID for easier verification
         tickets
       });
 
@@ -273,10 +279,20 @@ class TicketController {
         });
       }
 
-      const ticketSale = await TicketSale.findOne({
+      // First try finding by direct ticket ID match
+      let ticketSale = await TicketSale.findOne({
         'tickets.ticketId': ticketId,
         'paymentInfo.status': 'completed'
       });
+
+      // If not found, try finding by custom ticket ID format
+      if (!ticketSale) {
+        // Also try finding by the ticketId field directly (for custom formatted IDs)
+        ticketSale = await TicketSale.findOne({
+          'ticketId': ticketId,
+          'paymentInfo.status': 'completed'
+        });
+      }
 
       if (!ticketSale) {
         return res.status(404).json({
@@ -285,7 +301,17 @@ class TicketController {
         });
       }
 
-      const ticket = ticketSale.tickets.find(t => t.ticketId === ticketId);
+      // Check if we're dealing with a custom ticket ID or UUID in tickets array
+      const ticket = ticketSale.tickets ?
+        ticketSale.tickets.find(t => t.ticketId === ticketId) :
+        { ticketId: ticketSale.ticketId, isUsed: ticketSale.isUsed || false };
+
+      if (!ticket) {
+        return res.status(404).json({
+          success: false,
+          message: 'Ticket not found in the database'
+        });
+      }
 
       if (ticket.isUsed) {
         return res.status(400).json({
@@ -303,15 +329,26 @@ class TicketController {
       ticket.usedAt = new Date();
       ticket.verifiedBy = verifiedBy || 'System';
 
-      await ticketSale.save();
+      // Handle both array-based tickets and direct ticketId
+      if (ticketSale.tickets) {
+        await ticketSale.save();
+      } else {
+        ticketSale.isUsed = true;
+        ticketSale.usedAt = new Date();
+        ticketSale.verifiedBy = verifiedBy || 'System';
+        await ticketSale.save();
+      }
 
       res.json({
         success: true,
         message: 'Ticket verified successfully',
         data: {
+          ticketId: ticket.ticketId,
           customerName: `${ticketSale.customerInfo.firstName} ${ticketSale.customerInfo.lastName}`,
           ticketType: ticketSale.ticketInfo.typeName,
-          verifiedAt: ticket.usedAt
+          quantity: ticketSale.ticketInfo.quantity,
+          verifiedAt: ticket.usedAt,
+          verifiedBy: ticket.verifiedBy
         }
       });
 
@@ -397,14 +434,21 @@ class TicketController {
 
     for (let i = 0; i < quantity; i++) {
       const ticketId = uuidv4();
+
+      // Generate a custom readable ticket ID using customer's firstName + 4 random digits for each ticket
+      const firstName = customerInfo.firstName.toUpperCase();
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      const customTicketId = `${firstName}${randomNum}`;
+
       const qrCodeData = JSON.stringify({
-        ticketId,
+        ticketId: customTicketId, // Use the custom ticket ID for easier scanning
+        standardTicketId: ticketId, // Keep the UUID as a backup
         customerEmail: customerInfo.email,
         customerName: `${customerInfo.firstName} ${customerInfo.lastName}`,
         ticketType,
-        eventDate: '2024-12-22',
+        eventDate: '2025-09-28',
         eventTime: '17:00',
-        venue: 'National Theatre, Lagos',
+        venue: 'Oasis Event Centre, Port Harcourt',
         generatedAt: new Date().toISOString()
       });
 
@@ -420,7 +464,8 @@ class TicketController {
       });
 
       tickets.push({
-        ticketId,
+        ticketId: customTicketId, // Use the custom ticket ID for easier scanning
+        standardTicketId: ticketId, // Keep the UUID as a backup
         qrCode,
         isUsed: false,
         generatedAt: new Date()

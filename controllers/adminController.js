@@ -272,10 +272,25 @@ class AdminController {
         ticketType: ticketSale.ticketInfo.typeName,
         quantity: ticketSale.ticketInfo.quantity,
         eventDate: '2025-09-28',
-        venue: 'Oasis Event Centre, Port Harcourt'
+        eventTime: '17:00',
+        venue: 'Oasis Event Centre, Port Harcourt',
+        generatedAt: new Date().toISOString()
       });
 
-      ticketSale.qrCode = qrData;
+      // Generate QR code as data URL image
+      const QRCode = require('qrcode');
+      const qrCodeImage = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+
+      ticketSale.qrCode = qrCodeImage;
       await ticketSale.save().catch(error => {
         console.error('Error saving ticket sale:', error);
         throw new Error('Failed to save ticket sale');
@@ -1121,6 +1136,196 @@ class AdminController {
       res.status(500).json({
         success: false,
         message: 'Failed to toggle maintenance mode',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  // Get ticket verification statistics
+  static async getVerificationStats(req, res) {
+    try {
+      const [
+        ticketsArrayVerified,
+        topLevelTicketsVerified,
+        totalTickets,
+        recentArrayVerifications,
+        recentTopLevelVerifications,
+        verificationsByType
+      ] = await Promise.all([
+        // Count all verified tickets from the tickets array
+        TicketSale.aggregate([
+          { $match: { tickets: { $exists: true, $ne: [] } } },
+          { $unwind: '$tickets' },
+          { $match: { 'tickets.isUsed': true } },
+          { $count: 'total' }
+        ]),
+
+        // Count all verified top-level tickets
+        TicketSale.aggregate([
+          {
+            $match: {
+              tickets: { $exists: false },
+              isUsed: true,
+              'paymentInfo.status': 'completed'
+            }
+          },
+          { $count: 'total' }
+        ]),
+
+        // Count all tickets from completed sales
+        TicketSale.aggregate([
+          { $match: { 'paymentInfo.status': 'completed' } },
+          { $group: { _id: null, total: { $sum: '$ticketInfo.quantity' } } }
+        ]),
+
+        // Get recent verifications from tickets array
+        TicketSale.aggregate([
+          { $match: { tickets: { $exists: true, $ne: [] } } },
+          { $unwind: '$tickets' },
+          { $match: { 'tickets.isUsed': true } },
+          { $sort: { 'tickets.usedAt': -1 } },
+          { $limit: 10 },
+          {
+            $project: {
+              _id: 0,
+              ticketId: '$tickets.ticketId',
+              customerName: {
+                $concat: ['$customerInfo.firstName', ' ', '$customerInfo.lastName']
+              },
+              ticketType: '$ticketInfo.typeName',
+              verifiedAt: '$tickets.usedAt',
+              verifiedBy: '$tickets.verifiedBy'
+            }
+          }
+        ]),
+
+        // Get recent verifications from top-level tickets
+        TicketSale.aggregate([
+          {
+            $match: {
+              tickets: { $exists: false },
+              isUsed: true,
+              'paymentInfo.status': 'completed'
+            }
+          },
+          { $sort: { usedAt: -1 } },
+          { $limit: 10 },
+          {
+            $project: {
+              _id: 0,
+              ticketId: '$ticketId',
+              customerName: {
+                $concat: ['$customerInfo.firstName', ' ', '$customerInfo.lastName']
+              },
+              ticketType: '$ticketInfo.typeName',
+              verifiedAt: '$usedAt',
+              verifiedBy: '$verifiedBy'
+            }
+          }
+        ]),
+
+        // Get verification counts by ticket type
+        TicketSale.aggregate([
+          { $match: { 'paymentInfo.status': 'completed' } },
+          {
+            $facet: {
+              // Handle tickets in the tickets array
+              arrayTickets: [
+                { $match: { tickets: { $exists: true, $ne: [] } } },
+                { $unwind: '$tickets' },
+                {
+                  $group: {
+                    _id: '$ticketInfo.type',
+                    typeName: { $first: '$ticketInfo.typeName' },
+                    total: { $sum: 1 },
+                    verified: {
+                      $sum: { $cond: [{ $eq: ['$tickets.isUsed', true] }, 1, 0] }
+                    }
+                  }
+                }
+              ],
+              // Handle top-level tickets
+              topLevelTickets: [
+                { $match: { tickets: { $exists: false } } },
+                {
+                  $group: {
+                    _id: '$ticketInfo.type',
+                    typeName: { $first: '$ticketInfo.typeName' },
+                    total: { $sum: 1 },
+                    verified: {
+                      $sum: { $cond: [{ $eq: ['$isUsed', true] }, 1, 0] }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          // Unwind both result sets
+          { $project: { combined: { $concatArrays: ['$arrayTickets', '$topLevelTickets'] } } },
+          { $unwind: '$combined' },
+          // Group by ticket type to combine results
+          {
+            $group: {
+              _id: '$combined._id',
+              typeName: { $first: '$combined.typeName' },
+              total: { $sum: '$combined.total' },
+              verified: { $sum: '$combined.verified' }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              type: '$_id',
+              typeName: 1,
+              total: 1,
+              verified: 1,
+              percentage: {
+                $multiply: [
+                  { $divide: ['$verified', { $max: ['$total', 1] }] },
+                  100
+                ]
+              }
+            }
+          }
+        ])
+      ]);
+
+      // Calculate total verified tickets from both sources
+      const arrayVerifiedCount = ticketsArrayVerified.length > 0 ? ticketsArrayVerified[0].total : 0;
+      const topLevelVerifiedCount = topLevelTicketsVerified.length > 0 ? topLevelTicketsVerified[0].total : 0;
+      const totalVerifiedCount = arrayVerifiedCount + topLevelVerifiedCount;
+
+      const totalTicketsCount = totalTickets.length > 0 ? totalTickets[0].total : 0;
+      const verificationPercentage = totalTicketsCount > 0
+        ? (totalVerifiedCount / totalTicketsCount) * 100
+        : 0;
+
+      // Combine and sort recent verifications
+      const recentVerifications = [
+        ...(recentArrayVerifications || []),
+        ...(recentTopLevelVerifications || [])
+      ]
+        .sort((a, b) => new Date(b.verifiedAt) - new Date(a.verifiedAt))
+        .slice(0, 10);
+
+      res.json({
+        success: true,
+        data: {
+          summary: {
+            totalVerified: totalVerifiedCount,
+            totalTickets: totalTicketsCount,
+            verificationPercentage: Math.round(verificationPercentage * 100) / 100
+          },
+          recentVerifications,
+          byTicketType: verificationsByType
+        }
+      });
+
+    } catch (error) {
+      console.error('Get verification stats error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch verification statistics',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }

@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 const { requestLogger, errorHandler, corsMiddleware, rateLimiter } = require('./middleware');
 const cronJobService = require('./utils/cronJobService');
 const dbIndexManager = require('./utils/dbIndexManager');
+const { startBufferProcessor } = require('./utils/buffer/emailBuffer');
 
 // Load environment variables
 dotenv.config();
@@ -161,6 +162,10 @@ const startServer = async () => {
 
       // Initialize cron jobs
       cronJobService.init();
+
+      // Start email buffer processor
+      startBufferProcessor();
+      console.log('📧 Email buffer processor started');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

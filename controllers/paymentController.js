@@ -1,7 +1,9 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const TicketSale = require('../models/TicketSale');
-const { sendTicketEmail, sendPaymentConfirmationEmail, sendBankTransferEmail } = require('../utils/emailService');
+const { sendTicketEmail, sendPaymentConfirmationEmail, sendBankTransferEmail, sendTransferCompletedEmail, sendPaymentRejectionEmail } = require('../utils/emailService');
+const { addToBuffer } = require('../utils/buffer/emailBuffer');
+const { sendAdminPaymentNotification, sendUrgentApprovalNotification } = require('../utils/whatsappService');
 
 class PaymentController {
   // Handle Paystack webhook
@@ -361,7 +363,6 @@ class PaymentController {
 
       await ticketSale.save();
 
-      // Don't send email anymore - just return success with reference
       res.status(200).json({
         success: true,
         message: 'Payment reference generated successfully.',
@@ -459,14 +460,29 @@ class PaymentController {
       await ticketSale.save();
 
       // Send confirmation email to customer
-      await PaymentController._sendTransferCompletedEmail(ticketSale);
+      let emailSent = false;
+      try {
+        await sendTransferCompletedEmail(ticketSale);
+        emailSent = true;
+      } catch (emailError) {
+        console.error('Error sending transfer completed email:', emailError);
+        // Add to retry buffer instead of failing
+        await addToBuffer('transfer_completed', ticketSale);
+      }
 
       // Send urgent notification to admin
-      await PaymentController._sendAdminApprovalRequest(ticketSale);
+      try {
+        await PaymentController._sendAdminApprovalRequest(ticketSale);
+      } catch (notificationError) {
+        console.error('Error sending admin notification:', notificationError);
+        // Non-critical, continue even if admin notification fails
+      }
 
       res.status(200).json({
         success: true,
-        message: 'Transfer marked as completed. Your ticket will be sent once payment is confirmed by our team.',
+        message: emailSent
+          ? 'Transfer marked as completed. Your ticket will be sent once payment is confirmed by our team.'
+          : 'Transfer marked as completed. Your ticket will be sent once payment is confirmed by our team. Email confirmation may be delayed.',
         data: {
           reference,
           status: 'pending_approval',
@@ -527,26 +543,56 @@ class PaymentController {
         customerName: `${ticketSale.customerInfo.firstName} ${ticketSale.customerInfo.lastName}`,
         ticketType: ticketSale.ticketInfo.typeName,
         quantity: ticketSale.ticketInfo.quantity,
-        eventDate: '2025-09-28',
-        venue: 'Oasis Event Centre, Port Harcourt'
+        eventDate: '2024-12-22',
+        eventTime: '17:00',
+        venue: 'National Theatre, Lagos',
+        generatedAt: new Date().toISOString()
       });
 
-      ticketSale.qrCode = qrData;
-      await ticketSale.save();
-
-      // Send ticket email with QR code
-      await sendTicketEmail(ticketSale);
-
-      res.status(200).json({
-        success: true,
-        message: 'Payment approved and ticket sent to customer',
-        data: {
-          reference,
-          customerEmail: ticketSale.customerInfo.email,
-          ticketType: ticketSale.ticketInfo.typeName,
-          amount: ticketSale.ticketInfo.totalAmount
+      // Generate QR code as data URL image
+      const QRCode = require('qrcode');
+      const qrCodeImage = await QRCode.toDataURL(qrData, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
         }
       });
+
+      ticketSale.qrCode = qrCodeImage;
+
+      // Try to send the ticket email before saving the updated status
+      let emailSent = false;
+      try {
+        await sendTicketEmail(ticketSale);
+        emailSent = true;
+
+        // Only save the updated status if email sent successfully
+        await ticketSale.save();
+
+        res.status(200).json({
+          success: true,
+          message: 'Payment approved and ticket sent to customer',
+          data: {
+            reference,
+            customerEmail: ticketSale.customerInfo.email,
+            ticketType: ticketSale.ticketInfo.typeName,
+            amount: ticketSale.ticketInfo.totalAmount
+          }
+        });
+      } catch (emailError) {
+        console.error('Error sending ticket email:', emailError);
+
+        // Revert payment status since email failed
+        res.status(500).json({
+          success: false,
+          message: 'Unable to send ticket email. Please check your internet connection and try again in a few minutes.',
+          error: 'Email delivery failed'
+        });
+      }
 
     } catch (error) {
       console.error('Transfer approval error:', error);
@@ -596,20 +642,34 @@ class PaymentController {
       ticketSale.paymentInfo.rejectionReason = reason || 'Payment not verified';
       ticketSale.status = 'rejected';
 
-      await ticketSale.save();
+      // Try to send the rejection email before saving the updated status
+      let emailSent = false;
+      try {
+        await sendPaymentRejectionEmail(ticketSale, reason);
+        emailSent = true;
 
-      // Send rejection email to customer
-      await PaymentController._sendPaymentRejectionEmail(ticketSale, reason);
+        // Only save the updated status if email sent successfully
+        await ticketSale.save();
 
-      res.status(200).json({
-        success: true,
-        message: 'Payment rejected and customer notified',
-        data: {
-          reference,
-          customerEmail: ticketSale.customerInfo.email,
-          rejectionReason: reason || 'Payment not verified'
-        }
-      });
+        res.status(200).json({
+          success: true,
+          message: 'Payment rejected and customer notified',
+          data: {
+            reference,
+            customerEmail: ticketSale.customerInfo.email,
+            rejectionReason: reason || 'Payment not verified'
+          }
+        });
+      } catch (emailError) {
+        console.error('Error sending rejection email:', emailError);
+
+        // Return error since email couldn't be sent
+        res.status(500).json({
+          success: false,
+          message: 'Unable to send rejection email. Please check your internet connection and try again in a few minutes.',
+          error: 'Email delivery failed'
+        });
+      }
 
     } catch (error) {
       console.error('Transfer rejection error:', error);
@@ -829,10 +889,20 @@ class PaymentController {
   // Helper method to send admin notification
   static async _sendAdminNotification(ticketSale) {
     try {
-      // You can implement email notification to admin here
+      // Log the notification
       console.log(`New ticket purchase: ${ticketSale.paymentInfo.reference} - ${ticketSale.customerInfo.email}`);
 
-      // Example: Send WhatsApp notification or email to admin
+      // Send WhatsApp notification to admin (if enabled)
+      if (process.env.ENABLE_WHATSAPP_NOTIFICATIONS === 'true') {
+        try {
+          await sendAdminPaymentNotification(ticketSale);
+        } catch (whatsappError) {
+          console.error('Error sending WhatsApp notification:', whatsappError);
+          // Non-critical, continue even if WhatsApp notification fails
+        }
+      }
+
+      // You can also implement email notification here
       // await sendAdminNotificationEmail({
       //   reference: ticketSale.paymentInfo.reference,
       //   customerName: `${ticketSale.customerInfo.firstName} ${ticketSale.customerInfo.lastName}`,
@@ -842,6 +912,7 @@ class PaymentController {
 
     } catch (error) {
       console.error('Error sending admin notification:', error);
+      // Non-critical, don't throw error
     }
   }
 
@@ -849,9 +920,11 @@ class PaymentController {
   static async _sendTransferCompletedEmail(ticketSale) {
     try {
       const { sendTransferCompletedEmail } = require('../utils/emailService');
-      await sendTransferCompletedEmail(ticketSale);
+      const result = await sendTransferCompletedEmail(ticketSale);
+      return result;
     } catch (error) {
       console.error('Error sending transfer completed email:', error);
+      throw error; // Re-throw the error so the caller can handle it
     }
   }
 
@@ -861,11 +934,22 @@ class PaymentController {
       // Send urgent notification to admin about pending approval
       console.log(`URGENT: Transfer completed for ${ticketSale.paymentInfo.reference} - Needs approval`);
 
-      // You can implement WhatsApp notification or urgent email here
+      // Send WhatsApp notification to admin (if enabled)
+      if (process.env.ENABLE_WHATSAPP_NOTIFICATIONS === 'true') {
+        try {
+          await sendUrgentApprovalNotification(ticketSale);
+        } catch (whatsappError) {
+          console.error('Error sending WhatsApp notification:', whatsappError);
+          // Non-critical, continue even if WhatsApp notification fails
+        }
+      }
+
+      // You can also implement email notification here
       // await sendUrgentAdminNotification(ticketSale);
 
     } catch (error) {
       console.error('Error sending admin approval request:', error);
+      throw error; // Re-throw the error so the caller can handle it
     }
   }
 
@@ -883,9 +967,11 @@ class PaymentController {
   static async _sendPaymentRejectionEmail(ticketSale, reason) {
     try {
       const { sendPaymentRejectionEmail } = require('../utils/emailService');
-      await sendPaymentRejectionEmail(ticketSale, reason);
+      const result = await sendPaymentRejectionEmail(ticketSale, reason);
+      return result;
     } catch (error) {
       console.error('Error sending payment rejection email:', error);
+      throw error; // Re-throw the error so the caller can handle it
     }
   }
 }

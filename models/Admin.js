@@ -22,6 +22,7 @@ const adminSchema = new mongoose.Schema({
     approvePayments: { type: Boolean, default: true },
     rejectPayments: { type: Boolean, default: true },
     viewAnalytics: { type: Boolean, default: true },
+    verifyTickets: { type: Boolean, default: true },
     manageAdmins: { type: Boolean, default: false },
     systemSettings: { type: Boolean, default: false }
   },

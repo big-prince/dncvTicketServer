@@ -32,4 +32,7 @@ router.delete('/admins/:adminId', requireRole('super-admin'), AdminController.de
 router.get('/system/stats', requirePermission('systemSettings'), AdminController.getSystemStats);
 router.post('/system/maintenance', requireRole('super-admin'), AdminController.toggleMaintenanceMode);
 
+// Ticket verification routes
+router.get('/verification/stats', requirePermission('verifyTickets'), AdminController.getVerificationStats);
+
 module.exports = router;

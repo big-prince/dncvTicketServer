@@ -176,8 +176,10 @@ const generateTicketEmailTemplate = (ticketSale) => {
                 QR Code for Entry
               </div>
               <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #e5e7eb;">
-                <div style="font-family: monospace; font-size: 12px; word-break: break-all; background: #f9f9f9; padding: 10px; border-radius: 4px;">
-                  ${ticketSale.qrCode || 'QR Code will be generated upon payment approval'}
+                <!-- Using the QR code data URL directly as an image source -->
+                <img src="${ticketSale.qrCode}" alt="QR Code for Ticket" style="max-width: 200px; height: auto; display: ${ticketSale.qrCode ? 'block' : 'none'};" />
+                <div style="font-family: monospace; font-size: 12px; word-break: break-all; background: #f9f9f9; padding: 10px; border-radius: 4px; ${ticketSale.qrCode ? 'display: none;' : ''}">
+                  QR Code will be generated upon payment approval
                 </div>
               </div>
             </div>
