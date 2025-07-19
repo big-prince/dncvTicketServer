@@ -301,7 +301,7 @@ const generateTransferCompletedTemplate = (ticketSale) => {
             </ol>
           </div>
           
-          <p>If you have any questions, please contact us at <a href="mailto:info@dncvconcert.com">info@dncvconcert.com</a></p>
+          <p>If you have any questions, please contact us at <a href="mailto:denoblechoralvoices@gmail.com</a></p>
         </div>
         
         <div class="footer">
@@ -371,15 +371,15 @@ const generatePaymentRejectionTemplate = (ticketSale, reason) => {
               <li><strong>Check your transfer:</strong> Ensure you sent the exact amount to our account</li>
               <li><strong>Verify reference:</strong> Make sure you used "${ticketSale.paymentInfo.reference}" as description</li>
               <li><strong>Send proof:</strong> Reply to this email with a screenshot of your transfer receipt</li>
-              <li><strong>Call us:</strong> Contact us at +234 801 234 5678 for immediate assistance</li>
+              <li><strong>Call us:</strong> Contact us at +234 806 868 3392 for immediate assistance</li>
             </ol>
           </div>
           
           <div style="background: #fef3c7; border-radius: 8px; padding: 20px; margin: 20px 0;">
             <h3 style="color: #92400e;">Our Bank Details (for verification):</h3>
-            <p style="color: #92400e; margin: 5px 0;"><strong>Bank:</strong> Access Bank Plc</p>
+            <p style="color: #92400e; margin: 5px 0;"><strong>Bank:</strong> FCMB</p>
             <p style="color: #92400e; margin: 5px 0;"><strong>Account:</strong> De Noble Choral Voices</p>
-            <p style="color: #92400e; margin: 5px 0;"><strong>Number:</strong> 0123456789</p>
+            <p style="color: #92400e; margin: 5px 0;"><strong>Number:</strong> 5393339013</p>
           </div>
           
           <p>We're here to help! Please contact us as soon as possible so we can resolve this and get your tickets to you.</p>
@@ -387,8 +387,8 @@ const generatePaymentRejectionTemplate = (ticketSale, reason) => {
         
         <div class="footer">
           <p><strong>Contact Us:</strong><br>
-          📞 +234 801 234 5678<br>
-          📧 support@dncvconcert.com<br><br>
+          📞 +234 806 868 3392<br>
+          📧 denoblechoralvoices@gmail.com<br><br>
           De Noble Choral Voices 5th Edition<br>
           Oasis Event Centre, Port Harcourt<br>
           Sunday, 28th September 2025</p>
