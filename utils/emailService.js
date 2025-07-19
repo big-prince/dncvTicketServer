@@ -192,7 +192,7 @@ const generateTicketEmailTemplate = (ticketSale) => {
 
         <div class="footer">
           <p>De Noble Choral Voices | Oasis Event Centre, PH</p>
-          <p>For inquiries: info@denoblechoralvoices.com | +234 XXX XXX XXXX</p>
+          <p>For inquiries: denoblechoralvoices@gmail.com | +234 806 868 3392</p>
           <p>Follow us on social media for updates!</p>
         </div>
       </div>
