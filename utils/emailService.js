@@ -192,7 +192,7 @@ const generateTicketEmailTemplate = (ticketSale) => {
 
         <div class="footer">
           <p>De Noble Choral Voices | Oasis Event Centre, PH</p>
-          <p>For inquiries: denoblechoralvoices@gmail.com | +234 806 868 3392</p>
+          <p>For inquiries: denoblechoralvoices@gmail.com | +234 814 934 9466 (Jack) | +234 806 868 3392 (Elvis)</p>
           <p>Follow us on social media for updates!</p>
         </div>
       </div>
@@ -301,7 +301,7 @@ const generateTransferCompletedTemplate = (ticketSale) => {
             </ol>
           </div>
           
-          <p>If you have any questions, please contact us at <a href="mailto:denoblechoralvoices@gmail.com</a></p>
+          <p>If you have any questions, please contact us at <a href="mailto:denoblechoralvoices@gmail.com">denoblechoralvoices@gmail.com</a> or call +234 814 934 9466 (Jack) or +234 806 868 3392 (Elvis)</p>
         </div>
         
         <div class="footer">
@@ -371,7 +371,7 @@ const generatePaymentRejectionTemplate = (ticketSale, reason) => {
               <li><strong>Check your transfer:</strong> Ensure you sent the exact amount to our account</li>
               <li><strong>Verify reference:</strong> Make sure you used "${ticketSale.paymentInfo.reference}" as description</li>
               <li><strong>Send proof:</strong> Reply to this email with a screenshot of your transfer receipt</li>
-              <li><strong>Call us:</strong> Contact us at +234 806 868 3392 for immediate assistance</li>
+              <li><strong>Call us:</strong> Contact us at +234 814 934 9466 (Jack) or +234 806 868 3392 (Elvis) for immediate assistance</li>
             </ol>
           </div>
           
@@ -388,7 +388,9 @@ const generatePaymentRejectionTemplate = (ticketSale, reason) => {
         <div class="footer">
           <p><strong>Contact Us:</strong><br>
           📞 +234 806 868 3392<br>
-          📧 denoblechoralvoices@gmail.com<br><br>
+          📧 denoblechoralvoices@gmail.com<br>
+          📱 +234 814 934 9466 (Jack)<br>
+          📱 +234 806 868 3392 (Elvis)<br><br>
           De Noble Choral Voices 5th Edition<br>
           Oasis Event Centre, Port Harcourt<br>
           Sunday, 28th September 2025</p>
@@ -649,8 +651,8 @@ const generateBankTransferEmailTemplate = (ticketSale) => {
           
           <p style="margin-top: 30px;">
             <strong>Need Help?</strong><br>
-            WhatsApp: ${process.env.WHATSAPP_NUMBER || '+234 XXX XXX XXXX'}<br>
-            Email: ${process.env.CONTACT_EMAIL || 'support@dncv.com'}
+            WhatsApp: +234 814 934 9466 (Jack) or +234 806 868 3392 (Elvis)<br>
+            Email: denoblechoralvoices@gmail.com
           </p>
         </div>
         
@@ -731,9 +733,9 @@ const generatePaymentReminderEmailTemplate = (ticketSale, isSuspicious = false) 
             </ul>
             
             <p><strong>Contact Information:</strong></p>
-            <p>📧 Email: ${process.env.CONTACT_EMAIL || 'tickets@dnoblechoral.com'}</p>
-            <p>📱 Phone: ${process.env.CONTACT_PHONE || '+234 XXX XXX XXXX'}</p>
-            <p>💬 WhatsApp: ${process.env.WHATSAPP_NUMBER || '+234 XXX XXX XXXX'}</p>
+            <p>📧 Email: denoblechoralvoices@gmail.com</p>
+            <p>📱 Phone: +234 814 934 9466 (Jack) or +234 806 868 3392 (Elvis)</p>
+            <p>💬 WhatsApp: +234 814 934 9466 (Jack) or +234 806 868 3392 (Elvis)</p>
           </div>
 
           ${isSuspicious ? `
