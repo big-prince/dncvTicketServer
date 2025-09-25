@@ -228,6 +228,70 @@ class AdminController {
     }
   }
 
+  // Get all approved payments with pagination
+  static async getApprovedPayments(req, res) {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const skip = (page - 1) * limit;
+
+      const [payments, totalCount] = await Promise.all([
+        TicketSale.find({ 'paymentInfo.status': 'completed' })
+          .sort({ 'paymentInfo.paidAt': -1 })
+          .skip(skip)
+          .limit(limit),
+        TicketSale.countDocuments({ 'paymentInfo.status': 'completed' })
+      ]);
+
+      const formattedPayments = payments.map(payment => ({
+        id: payment._id,
+        reference: payment.paymentInfo.reference,
+        customerInfo: {
+          name: `${payment.customerInfo.firstName} ${payment.customerInfo.lastName}`,
+          email: payment.customerInfo.email,
+          phone: payment.customerInfo.phone
+        },
+        ticketInfo: {
+          type: payment.ticketInfo.typeName,
+          quantity: payment.ticketInfo.quantity,
+          unitPrice: payment.ticketInfo.unitPrice,
+          totalAmount: payment.ticketInfo.totalAmount
+        },
+        paymentInfo: {
+          method: payment.paymentInfo.method,
+          status: payment.paymentInfo.status,
+          amount: payment.paymentInfo.amount,
+          paidAt: payment.paymentInfo.paidAt,
+          approvedBy: payment.paymentInfo.approvedBy
+        },
+        createdAt: payment.createdAt,
+        qrCode: payment.qrCode
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          payments: formattedPayments,
+          pagination: {
+            currentPage: page,
+            totalPages: Math.ceil(totalCount / limit),
+            totalCount,
+            hasNext: page < Math.ceil(totalCount / limit),
+            hasPrev: page > 1
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Get approved payments error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch approved payments',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
   // Approve payment
   static async approvePayment(req, res) {
     try {

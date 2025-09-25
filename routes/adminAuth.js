@@ -16,6 +16,7 @@ router.get('/profile', AdminController.getProfile);
 
 // Payment management routes
 router.get('/payments/pending', AdminController.getPendingPayments);
+router.get('/payments/approved', AdminController.getApprovedPayments);
 router.post('/payments/:reference/approve', requirePermission('approvePayments'), AdminController.approvePayment);
 router.post('/payments/:reference/reject', requirePermission('rejectPayments'), AdminController.rejectPayment);
 
