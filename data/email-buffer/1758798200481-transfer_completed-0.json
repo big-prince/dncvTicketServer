@@ -1,0 +1,46 @@
+{
+  "emailType": "transfer_completed",
+  "data": {
+    "customerInfo": {
+      "firstName": "Sunday",
+      "lastName": "Prince",
+      "email": "ograindy@gmail.com",
+      "phone": "08155082866",
+      "fullName": "Sunday Prince"
+    },
+    "ticketInfo": {
+      "typeId": "vip-single",
+      "typeName": "Vip single",
+      "quantity": 1,
+      "unitPrice": 25000,
+      "totalAmount": 25000
+    },
+    "paymentInfo": {
+      "method": "bank_transfer",
+      "status": "pending_approval",
+      "reference": "SUNDAY1516",
+      "currency": "NGN",
+      "amount": 25000,
+      "provider": "bank_transfer",
+      "transferMarkedAt": "2025-09-25T11:03:19.174Z"
+    },
+    "eventDetails": {
+      "eventName": "De Noble Choral Voices 5th Edition Concert",
+      "eventDate": "2024-12-22T17:00:00.000Z",
+      "venue": "National Theatre, Lagos"
+    },
+    "_id": "68d52177703cf395964654ab",
+    "ticketId": "SUNDAY1516",
+    "qrCode": "SUNDAY1516",
+    "status": "pending_payment",
+    "emailSent": false,
+    "createdAt": "2025-09-25T11:03:19.161Z",
+    "updatedAt": "2025-09-25T11:03:19.175Z",
+    "__v": 0,
+    "totalTickets": 1,
+    "id": "68d52177703cf395964654ab"
+  },
+  "attempts": 2,
+  "createdAt": 1758798200481,
+  "nextRetryAt": 1758803325420
+}
