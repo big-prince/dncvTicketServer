@@ -6,6 +6,7 @@ const { requestLogger, errorHandler, corsMiddleware, rateLimiter } = require('./
 const cronJobService = require('./utils/cronJobService');
 const dbIndexManager = require('./utils/dbIndexManager');
 const { startBufferProcessor } = require('./utils/buffer/emailBuffer');
+const { emailQueue } = require('./utils/emailQueue');
 
 // Load environment variables
 dotenv.config();
@@ -166,6 +167,17 @@ const startServer = async () => {
       // Start email buffer processor
       startBufferProcessor();
       console.log('📧 Email buffer processor started');
+
+      // Initialize email queue
+      emailQueue.on('job:success', (job) => {
+        console.log(`✅ Email job completed: ${job.type} for ${job.data.customerInfo?.email}`);
+      });
+
+      emailQueue.on('job:failed', (job) => {
+        console.log(`❌ Email job failed permanently: ${job.type} - ${job.lastError}`);
+      });
+
+      console.log('📬 Email queue processor initialized');
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

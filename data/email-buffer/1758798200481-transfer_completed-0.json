@@ -40,7 +40,7 @@
     "totalTickets": 1,
     "id": "68d52177703cf395964654ab"
   },
-  "attempts": 2,
+  "attempts": 3,
   "createdAt": 1758798200481,
-  "nextRetryAt": 1758803325420
+  "nextRetryAt": 1758896084294
 }

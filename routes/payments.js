@@ -1,15 +1,16 @@
 const express = require('express');
 const PaymentController = require('../controllers/paymentController');
+const { transferRateLimit, paymentRateLimit } = require('../middleware/rateLimitMiddleware');
 
 const router = express.Router();
 
 // Initialize payments
-router.post('/paystack/initialize', PaymentController.initializePaystack);
-router.post('/opay/initialize', PaymentController.initializeOpay);
-router.post('/bank-transfer', PaymentController.initiateBankTransfer);
+router.post('/paystack/initialize', paymentRateLimit, PaymentController.initializePaystack);
+router.post('/opay/initialize', paymentRateLimit, PaymentController.initializeOpay);
+router.post('/bank-transfer', paymentRateLimit, PaymentController.initiateBankTransfer);
 
 // Transfer management
-router.post('/transfer-completed', PaymentController.markTransferCompleted);
+router.post('/transfer-completed', transferRateLimit, PaymentController.markTransferCompleted);
 router.post('/approve-transfer', PaymentController.approveTransfer);
 router.post('/reject-transfer', PaymentController.rejectTransfer);
 router.get('/pending-transfers', PaymentController.getPendingTransfers);

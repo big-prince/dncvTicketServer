@@ -428,6 +428,9 @@ class PaymentController {
   static async markTransferCompleted(req, res) {
     try {
       const { reference } = req.body;
+      const userIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0];
+
+      console.log(`[TRANSFER] Reference: ${reference}, IP: ${userIp}, Headers: ${JSON.stringify(req.headers)}`);
 
       if (!reference) {
         return res.status(400).json({
@@ -447,6 +450,8 @@ class PaymentController {
         });
       }
 
+      console.log(`[TRANSFER] Current status: ${ticketSale.paymentInfo.status}, Previous IP: ${ticketSale.paymentInfo.userIpAddress}, Previous click: ${ticketSale.paymentInfo.transferClickedAt}`);
+
       if (ticketSale.paymentInfo.status !== 'pending_transfer') {
         return res.status(400).json({
           success: false,
@@ -454,20 +459,71 @@ class PaymentController {
         });
       }
 
-      // Update status to pending admin approval
+      const now = new Date();
+      const rateLimitWindow = 1.5 * 60 * 1000;
+
+      // Check for recent attempts of the same ticket type from this IP
+      const recentSameTypeAttempt = await TicketSale.findOne({
+        'paymentInfo.userIpAddress': userIp,
+        'ticketInfo.typeId': ticketSale.ticketInfo.typeId,
+        'paymentInfo.transferClickedAt': {
+          $gte: new Date(now - rateLimitWindow)
+        },
+        '_id': { $ne: ticketSale._id } // Exclude current ticket
+      }).sort({ 'paymentInfo.transferClickedAt': -1 });
+
+      if (recentSameTypeAttempt) {
+        const waitTimeSeconds = Math.ceil((rateLimitWindow - (now - recentSameTypeAttempt.paymentInfo.transferClickedAt)) / 1000);
+        console.log(`[TICKET_TYPE_RATE_LIMIT] Blocking ${ticketSale.ticketInfo.typeId} purchase from ${userIp}. Last attempt: ${recentSameTypeAttempt.paymentInfo.transferClickedAt}, Wait time: ${waitTimeSeconds}s`);
+
+        return res.status(429).json({
+          success: false,
+          message: `You just attempted to purchase a ${ticketSale.ticketInfo.typeName} ticket. Please wait 2 minutes before trying again.`,
+          rateLimited: true,
+          ticketType: ticketSale.ticketInfo.typeName,
+          waitTime: waitTimeSeconds
+        });
+      }
+
+      // Also check the existing same-reference rate limit as backup
+      if (ticketSale.paymentInfo.transferClickedAt &&
+        ticketSale.paymentInfo.userIpAddress === userIp &&
+        (now - ticketSale.paymentInfo.transferClickedAt) < rateLimitWindow) {
+
+        const waitTimeSeconds = Math.ceil((rateLimitWindow - (now - ticketSale.paymentInfo.transferClickedAt)) / 1000);
+        console.log(`[REFERENCE_RATE_LIMIT] Blocking repeat request from ${userIp} for reference ${reference}. Wait time: ${waitTimeSeconds}s`);
+
+        return res.status(429).json({
+          success: false,
+          message: 'Please wait 2 minutes before clicking again. We have received your first request.',
+          rateLimited: true,
+          waitTime: waitTimeSeconds
+        });
+      }
+
+      // Update status and tracking info
       ticketSale.paymentInfo.status = 'pending_approval';
       ticketSale.paymentInfo.transferMarkedAt = new Date();
+      ticketSale.paymentInfo.userIpAddress = userIp;
+      ticketSale.paymentInfo.transferClickedAt = now;
+      ticketSale.paymentInfo.transferClickCount = (ticketSale.paymentInfo.transferClickCount || 0) + 1;
       await ticketSale.save();
 
-      // Send confirmation email to customer
-      let emailSent = false;
+      console.log(`[TRANSFER] Successfully updated. Click count: ${ticketSale.paymentInfo.transferClickCount}, IP: ${userIp}`);
+
+      // Queue email instead of sending immediately
       try {
-        await sendTransferCompletedEmail(ticketSale);
-        emailSent = true;
-      } catch (emailError) {
-        console.error('Error sending transfer completed email:', emailError);
-        // Add to retry buffer instead of failing
-        await addToBuffer('transfer_completed', ticketSale);
+        const { queueEmail } = require('../utils/emailQueue');
+        await queueEmail('transfer_completed', ticketSale);
+      } catch (queueError) {
+        console.error('Error queueing email:', queueError);
+        try {
+          await sendTransferCompletedEmail(ticketSale);
+        } catch (emailError) {
+          console.error('Error sending email directly:', emailError);
+          const { addToBuffer } = require('../utils/buffer/emailBuffer');
+          await addToBuffer('transfer_completed', ticketSale);
+        }
       }
 
       // Send urgent notification to admin
@@ -480,13 +536,12 @@ class PaymentController {
 
       res.status(200).json({
         success: true,
-        message: emailSent
-          ? 'Transfer marked as completed. Your ticket will be sent once payment is confirmed by our team.'
-          : 'Transfer marked as completed. Your ticket will be sent once payment is confirmed by our team. Email confirmation may be delayed.',
+        message: 'Transfer marked as completed. Your ticket will be sent once payment is confirmed by our team.',
         data: {
           reference,
           status: 'pending_approval',
-          message: 'We will verify your payment and send your ticket within 2-4 hours during business hours.'
+          message: 'We will verify your payment and send your ticket within 2-4 hours during business hours.',
+          clickCount: ticketSale.paymentInfo.transferClickCount
         }
       });
 

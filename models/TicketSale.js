@@ -66,8 +66,7 @@ const ticketSaleSchema = new mongoose.Schema({
     },
     reference: {
       type: String,
-      required: true,
-      unique: true
+      required: true
     },
     currency: {
       type: String,
@@ -87,6 +86,16 @@ const ticketSaleSchema = new mongoose.Schema({
     },
     transferMarkedAt: {
       type: Date
+    },
+    userIpAddress: {
+      type: String
+    },
+    transferClickedAt: {
+      type: Date
+    },
+    transferClickCount: {
+      type: Number,
+      default: 0
     },
     lastReminderSent: {
       type: Date
@@ -168,7 +177,7 @@ ticketSaleSchema.pre('save', function (next) {
 
 // Create indexes for better query performance
 ticketSaleSchema.index({ 'customerInfo.email': 1 });
-ticketSaleSchema.index({ 'paymentInfo.reference': 1 });
+ticketSaleSchema.index({ 'paymentInfo.reference': 1 }, { unique: true });
 ticketSaleSchema.index({ 'paymentInfo.status': 1 });
 ticketSaleSchema.index({ 'ticketId': 1 });
 ticketSaleSchema.index({ createdAt: -1 });
